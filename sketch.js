@@ -1,85 +1,66 @@
-let mic, fft;
-let blocks = [];
+let mic;
+let level;
+let colors;
+let threshold = 0.01;
+let canSwitch = true;
+
+let currentColor;
+let targetColor;
+let transitionProgress = 1.0; // Start fully transitioned
+let transitionSpeed = 0.03;   // Controls how fast color fades
 
 function setup() {
-  createCanvas(600, 400);
+  createCanvas(390, 844);
   mic = new p5.AudioIn();
   mic.start();
-  fft = new p5.FFT(0.9, 16);
-  fft.setInput(mic);
 
-  // Block-Definitionen (x, y, Breite, Höhe)
-  blocks = [
-    { x: 100, y: 0, w: 40, h: 300 },  // 0: kleines ’i’
-    { x: 160, y: 0, w: 40, h: 200 },  // 1: ’L’-Shape
-    // 2+3: unser П+м–Shape, beide mit exakt gleicher Ausgangs-Höhe h=250
-    { x: 250, y: 0, w: 40, h: 250 },  // linker Vertikal-Balken
-    { x: 300, y: 0, w: 40, h: 250 },  // rechter Vertikal-Balken
-    { x: 360, y: 0, w: 40, h: 300 }   // 4: letzter dynamischer Block
-  ];
+  colors = ['red', 'limegreen', 'blue'];
+  currentColor = color(random(colors));
+  targetColor = currentColor;
 }
 
 function draw() {
-  background(255);
-  let spectrum = fft.analyze();
+  level = mic.getLevel();
 
-  noStroke();
+  // Trigger color change if sound is detected
+  if (level > threshold && canSwitch) {
+    let newColor;
+    do {
+      newColor = color(random(colors));
+    } while (newColor.toString() === targetColor.toString()); // prevent repeat
+    targetColor = newColor;
+    transitionProgress = 0.0;
+    canSwitch = false;
+  }
+
+  // Reset switch permission when sound is low
+  if (level < threshold) {
+    canSwitch = true;
+  }
+
+  // Update currentColor smoothly toward targetColor
+  if (transitionProgress < 1.0) {
+    transitionProgress += transitionSpeed;
+    transitionProgress = constrain(transitionProgress, 0, 1);
+    currentColor = lerpColor(currentColor, targetColor, transitionProgress);
+  }
+
+  background(currentColor);
+
   fill(0);
 
-  for (let i = 0; i < blocks.length; i++) {
-    let b    = blocks[i];
-    let band = spectrum[i % spectrum.length];
-    let deltaH = map(band, 0, 255, -50, 50);
+  // Horizontal blocks (static)
+  rect(31, 354, 23, 23);   
+  rect(90, 295, 68, 23);   
+  rect(185, 272, 63, 23);  
+  rect(225, 336, 134, 23); 
 
-    // --- Block 0: kleines ’i’ -----------------------
-    if (i === 0) {
-      let dotSize = b.w;
-      rect(b.x, b.y, dotSize, dotSize);
-      let stemH = max(0, b.h + deltaH);
-      let gap   = 10;
-      rect(b.x, b.y + dotSize + gap, b.w, stemH);
-    }
-    // --- Block 1: L-Shape ---------------------------
-    else if (i === 1) {
-      let newH1 = max(0, b.h + deltaH);
-      // vertikaler, wabernder Schaft
-      rect(b.x, b.y, b.w, newH1);
-      // statische Kopf-Leiste (Breite bis ganz rechts)
-      let barHeight = b.w;
-      let rightMost = blocks[4].x + blocks[4].w;
-      rect(b.x, b.y, rightMost - b.x, barHeight);
-    }
-    // --- Block 2: цельный ’П+м’-Shape ---------------
-    else if (i === 2) {
-      // Durchschnitt der beiden Bänder 2 und 3
-      let band2   = spectrum[2];
-      let band3   = spectrum[3];
-      let bandAvg = (band2 + band3) / 2;
-      let newH    = max(0, b.h + map(bandAvg, 0, 255, -50, 50));
-
-      // Koordinaten
-      let x1  = blocks[2].x;
-      let x2  = blocks[3].x;
-      let w   = b.w;
-      let fullW = (x2 + w) - x1;
-
-      // 1) Obere Leiste
-      rect(x1, 0, fullW, w);
-      // 2) Untere Leiste
-      rect(x1, newH - w, fullW, w);
-      // 3) Linke Vertikale
-      rect(x2, 0, w, newH);
-      // 4) Rechte Vertikale
-      rect(x2, 0, w, newH);
-    }
-    // --- Block 3: wird von Block 2 gemalt -----------
-    else if (i === 3) {
-      continue;
-    }
-    // --- Block 4: ganz normal ----------------------
-    else {
-      let newH4 = max(0, b.h + deltaH);
-      rect(b.x, b.y, b.w, newH4);
-    }
-  }
+  // Vertical blocks (animated)
+  rect(31, 396, 23, map(level * 8.0, 0, 1, 75, 300));   
+  rect(90, 295, 23, map(level * 12, 0, 1, 220, 400));  
+  rect(134, 340, 23, map(level * 6.5, 0, 1, 210, 400));
+  rect(185, 272, 23, map(level * 3.5, 0, 1, 210, 400));
+  rect(225, 272, 23, map(level * 8.5, 0, 1, 280, 500));
+  rect(293, 336, 23, map(level * 1.8, 0, 1, 165, 300));
+  rect(336, 336, 23, map(level * 8.2, 0, 1, 134, 300));
 }
